@@ -1,0 +1,69 @@
+services:
+  quickstart:
+    image: ankittharwani/mids-cloudera-hadoop:latest
+    hostname: quickstart.cloudera
+    privileged: true
+    container_name: mids-cloudera-hadoop-quickstart
+    command: bash -c "
+      /root/startup.sh; 
+      /usr/bin/docker-quickstart; 
+      service hue start; 
+      nohup /opt/anaconda/bin/jupyter notebook --ip=0.0.0.0 --port=8889 --no-browser --notebook-dir=/root > /var/log/jupyter.log 2>&1 & 
+      tail -f /dev/null
+      "
+    ports:
+      - "8887:8888"   # HUE server / Cloudera Manager
+      - "8889:8889"   # Jupyter notebooks (workspace principal)
+      - "10020:10020" # MapReduce job history server
+      - "10000:10000" # Hive server
+      - "8022:22"     # SSH access
+      - "7180:7180"   # Cloudera Manager web UI
+      - "11000:11000" # Oozie workflow scheduler
+      - "50070:50070" # HDFS NameNode REST API
+      - "50075:50075" # HDFS DataNode REST API
+      - "8088:8088"   # YARN Resource Manager webapp
+      - "19888:19888" # MapReduce History Server webapp
+      - "8983:8983"   # Solr search console
+      - "8032:8032"   # YARN Resource Manager IPC
+      - "8042:8042"   # YARN Node Manager IPC
+      - "60010:60010" # HBase Master web UI
+    tty: true
+    stdin_open: true
+    environment:
+      - USER=root
+      - DISPLAY=host.docker.internal:0
+    volumes:
+      # Carpeta local para notebooks y datos persistentes (SBD práctica)
+      - /home/rafael/dev/ssbbdd_pec/mids-cloudera-hadoop/workspace:/workspace
+      # Volúmenes adicionales opcionales para HDFS y datos
+      - hdfs-namenode:/hadoop/dfs/name
+      - hdfs-datanode:/hadoop/dfs/data
+    # Recursos recomendados para la práctica (ajusta según tu hardware)
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 4G
+    # Health check básico para verificar servicios Hadoop
+    healthcheck:
+      test: ["CMD", "bash", "-c", "hdfs dfsadmin -report | grep -q 'DFS is healthy' || curl -f http://localhost:8889 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+# Volúmenes nombrados para persistencia de datos HDFS
+volumes:
+  hdfs-namenode:
+    driver: local
+  hdfs-datanode:
+    driver: local
+
+# Notas para la práctica SBD:
+# - Jupyter: http://localhost:8889 (sin token requerido - ver Dockerfile config)
+# - HUE: http://localhost:8887 (usuario: cloudera / password: cloudera)
+# - Cloudera Manager: http://localhost:7180
+# - Comandos desde terminal: make exec (si usas Makefile) o docker exec -it mids-cloudera-hadoop-quickstart bash
+# - Ambos servicios (Jupyter y Hue) arrancan automáticamente al iniciar el contenedor
+# - Tiempo de inicialización: ~2-5 minutos después de 'docker compose up -d'
